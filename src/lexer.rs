@@ -1,14 +1,14 @@
-use std::fs::OpenOptions;
-use std::io::prelude::*;
-use std::str;
-use std::collections::VecDeque;
-use std::path;
-use std::process;
-use std::collections::{HashMap, HashSet};
 use error;
+use node::Bits;
 use parser;
 use parser::{Error, ParseR};
-use node::Bits;
+use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet};
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::path;
+use std::process;
+use std::str;
 
 extern crate ansi_term;
 use self::ansi_term::{Colour, Style};
@@ -143,33 +143,33 @@ macro_rules! ident_val {
     ($e:expr) => {
         match &$e.kind {
             &TokenKind::Identifier(ref ident) => ident.to_string(),
-            _ => "".to_string()
+            _ => "".to_string(),
         }
-    }
+    };
 }
 macro_rules! ident_mut_val {
     ($e:expr) => {
         match &mut $e.kind {
             &mut TokenKind::Identifier(ref mut ident) => ident,
-            _ => panic!()
+            _ => panic!(),
         }
-    }
+    };
 }
 macro_rules! retrieve_str {
     ($e:expr) => {
         match &$e.kind {
             &TokenKind::String(ref s) => s.to_string(),
-            _ => panic!()
+            _ => panic!(),
         }
-    }
+    };
 }
 macro_rules! matches {
     ($e:expr, $p:pat) => {
         match $e {
             $p => true,
-            _ => false
+            _ => false,
         }
-    }
+    };
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -241,11 +241,13 @@ impl Lexer {
             .read(true)
             .open("./include/rucc.h")
             .unwrap();
+
         let mut rucc_header_body = String::new();
         rucc_header
             .read_to_string(&mut rucc_header_body)
             .ok()
             .expect("cannot read file");
+
         let mut peek = VecDeque::new();
         unsafe {
             peek.push_back(file_body.as_mut_vec().clone());
@@ -264,7 +266,7 @@ impl Lexer {
         cur_line.push_back(1);
         cur_line.push_back(1);
 
-        Lexer {
+        return Lexer {
             cur_line: cur_line,
             filename: filenames,
             macro_map: HashMap::new(),
@@ -272,17 +274,21 @@ impl Lexer {
             peek_pos: peek_pos,
             buf: buf,
             cond_stack: Vec::new(),
-        }
+        };
     }
+
     pub fn get_filename(&self) -> String {
         self.filename.back().unwrap().to_owned()
     }
+
     pub fn get_cur_pos(&self) -> Pos {
         Pos::new(*self.get_cur_line(), *self.peek_pos.back().unwrap())
     }
+
     pub fn get_cur_line(&self) -> &usize {
         self.cur_line.back().unwrap()
     }
+
     fn peek_get(&mut self) -> ParseR<char> {
         let peek = self.peek.back_mut().unwrap();
         let peek_pos = *self.peek_pos.back_mut().unwrap();
@@ -292,6 +298,7 @@ impl Lexer {
             Ok(peek[peek_pos] as char)
         }
     }
+
     fn peek_next(&mut self) -> ParseR<char> {
         let peek = self.peek.back().unwrap();
         let peek_pos = self.peek_pos.back_mut().unwrap();
@@ -305,6 +312,7 @@ impl Lexer {
         }
         Ok(c)
     }
+
     fn peek_next_char_is(&mut self, ch: char) -> ParseR<bool> {
         let peek = self.peek.back_mut().unwrap();
         let peek_pos = self.peek_pos.back_mut().unwrap();
@@ -315,19 +323,23 @@ impl Lexer {
             Ok(nextc == ch)
         }
     }
+
     fn peek_char_is(&mut self, ch: char) -> ParseR<bool> {
         let peekc = try!(self.peek_get());
         Ok(peekc == ch)
     }
 
+    // Public
     pub fn peek_keyword_token_is(&mut self, expect: Keyword) -> ParseR<bool> {
         let peek = try!(self.peek());
         Ok(peek.kind == TokenKind::Keyword(expect))
     }
+
     pub fn peek_symbol_token_is(&mut self, expect: Symbol) -> ParseR<bool> {
         let peek = try!(self.peek());
         Ok(peek.kind == TokenKind::Symbol(expect))
     }
+
     pub fn next_symbol_token_is(&mut self, expect: Symbol) -> ParseR<bool> {
         let peek = try!(self.get());
         let next = try!(self.get());
@@ -336,6 +348,7 @@ impl Lexer {
         self.unget(peek);
         Ok(next_token_is_expected)
     }
+
     pub fn skip_keyword(&mut self, keyword: Keyword) -> ParseR<bool> {
         let tok = try!(self.get());
         if tok.kind == TokenKind::Keyword(keyword) {
@@ -344,6 +357,7 @@ impl Lexer {
         self.unget(tok);
         Ok(false)
     }
+
     pub fn skip_symbol(&mut self, sym: Symbol) -> ParseR<bool> {
         let tok = try!(self.get());
         if tok.kind == TokenKind::Symbol(sym) {
@@ -352,19 +366,25 @@ impl Lexer {
         self.unget(tok);
         Ok(false)
     }
+
     pub fn expect_skip_keyword(&mut self, expect: Keyword) -> ParseR<bool> {
         self.skip_keyword(expect)
     }
+
     pub fn expect_skip_symbol(&mut self, expect: Symbol) -> ParseR<bool> {
         self.skip_symbol(expect)
     }
+
     pub fn unget(&mut self, t: Token) {
         self.buf.back_mut().unwrap().push_back(t);
     }
+
     pub fn unget_all(&mut self, tv: &Vec<Token>) {
         let buf = self.buf.back_mut().unwrap();
         buf.extend(tv.iter().rev().map(|tok| tok.clone()));
     }
+
+    // Block 2
 
     pub fn read_identifier(&mut self, c: char) -> ParseR<Token> {
         let mut ident = "".to_string();
@@ -386,6 +406,7 @@ impl Lexer {
             *self.get_cur_line(),
         ))
     }
+
     fn read_number_literal(&mut self, c: char) -> ParseR<Token> {
         let mut num = "".to_string();
         num.push(c);
@@ -408,10 +429,12 @@ impl Lexer {
 
         if is_float {
             // TODO: now rucc ignores suffix
-            num = num.trim_right_matches(|c| match c {
-                'a'...'z' | 'A'...'Z' | '+' | '-' => true,
-                _ => false,
-            }).to_string();
+            num = num
+                .trim_right_matches(|c| match c {
+                    'a'...'z' | 'A'...'Z' | '+' | '-' => true,
+                    _ => false,
+                })
+                .to_string();
             let f: f64 = num.parse().unwrap();
             Ok(Token::new(
                 TokenKind::FloatNumber(f),
@@ -443,6 +466,7 @@ impl Lexer {
             ))
         }
     }
+
     fn read_dec_num(&mut self, num_literal: &str) -> (i64, String) {
         let mut suffix = "".to_string();
         let n = num_literal.chars().fold(0, |n, c| match c {
@@ -454,6 +478,7 @@ impl Lexer {
         });
         (n as i64, suffix)
     }
+
     fn read_oct_num(&mut self, num_literal: &str) -> (i64, String) {
         let mut suffix = "".to_string();
         let n = num_literal.chars().fold(0, |n, c| match c {
@@ -465,6 +490,7 @@ impl Lexer {
         });
         (n as i64, suffix)
     }
+
     fn read_hex_num(&mut self, num_literal: &str) -> (i64, String) {
         let mut suffix = "".to_string();
         let n = num_literal.chars().fold(0, |n, c| match c {
@@ -476,6 +502,7 @@ impl Lexer {
         });
         (n as i64, suffix)
     }
+
     pub fn read_newline(&mut self) -> ParseR<Token> {
         Ok(Token::new(
             TokenKind::Newline,
@@ -484,13 +511,15 @@ impl Lexer {
             *self.get_cur_line(),
         ))
     }
+
     pub fn read_symbol(&mut self, c: char) -> ParseR<Token> {
         let pos = *self.peek_pos.back().unwrap();
         let mut sym = "".to_string();
         sym.push(c);
         match c {
             '+' | '-' => {
-                if try!(self.peek_char_is('=')) || try!(self.peek_char_is('>'))
+                if try!(self.peek_char_is('='))
+                    || try!(self.peek_char_is('>'))
                     || try!(self.peek_char_is('+'))
                     || try!(self.peek_char_is('-'))
                 {
@@ -525,6 +554,7 @@ impl Lexer {
             *self.get_cur_line(),
         ))
     }
+
     fn read_escaped_char(&mut self) -> ParseR<char> {
         let c = try!(self.peek_next());
         match c {
@@ -572,6 +602,7 @@ impl Lexer {
             _ => Ok(c),
         }
     }
+
     fn read_string_literal(&mut self) -> ParseR<Token> {
         let pos = *self.peek_pos.back().unwrap();
         let mut s = "".to_string();
@@ -589,6 +620,7 @@ impl Lexer {
             *self.get_cur_line(),
         ))
     }
+
     fn read_char_literal(&mut self) -> ParseR<Token> {
         let pos = *self.peek_pos.back().unwrap();
         let c = {
@@ -607,6 +639,8 @@ impl Lexer {
         }
         Ok(Token::new(TokenKind::Char(c), 0, pos, *self.get_cur_line()))
     }
+
+    // Block 3
 
     pub fn do_read_token(&mut self) -> ParseR<Token> {
         if let Some(tok) = self.buf.back_mut().unwrap().pop_back() {
@@ -673,6 +707,7 @@ impl Lexer {
             }
         }
     }
+
     pub fn read_token(&mut self) -> ParseR<Token> {
         let token = self.do_read_token();
         token.and_then(|tok| match tok.kind {
@@ -681,6 +716,7 @@ impl Lexer {
             _ => Ok(tok),
         })
     }
+
     fn convert_to_symbol(&mut self, token: Token) -> Token {
         let pos = token.pos.pos;
         let line = token.pos.line;
@@ -743,6 +779,7 @@ impl Lexer {
 
         Token::new(symbol, 0, pos, line)
     }
+
     fn maybe_convert_to_keyword(&mut self, token: Token) -> Token {
         let pos = token.pos.pos;
         let line = token.pos.line;
@@ -793,6 +830,7 @@ impl Lexer {
         token
     }
 
+    // Block 4
     fn expand_obj_macro(
         &mut self,
         token: Token,
@@ -811,6 +849,7 @@ impl Lexer {
         self.unget_all(&body);
         Ok(())
     }
+
     fn read_one_arg(&mut self, end: &mut bool) -> ParseR<Vec<Token>> {
         let mut nest = 0;
         let mut arg = Vec::new();
@@ -836,6 +875,7 @@ impl Lexer {
         }
         Ok(arg)
     }
+
     fn stringize(&mut self, pos: &Pos, tokens: &Vec<Token>) -> Token {
         let string = tokens
             .iter()
@@ -858,6 +898,7 @@ impl Lexer {
             .to_string();
         Token::new(TokenKind::String(string), 0, pos.pos, pos.line)
     }
+
     fn expand_func_macro(
         &mut self,
         token: Token,
@@ -937,6 +978,7 @@ impl Lexer {
         self.unget_all(&expanded);
         Ok(())
     }
+
     fn expand(&mut self, token: ParseR<Token>) -> ParseR<Token> {
         token.and_then(|tok| {
             let name = ident_val!(tok);
@@ -1044,6 +1086,7 @@ impl Lexer {
             })
             .and_then(|a| Some(a.to_string() + filename))
     }
+
     fn read_headerfile_name(&mut self) -> ParseR<String> {
         let mut name = "".to_string();
         // Lt = '<'
@@ -1063,10 +1106,12 @@ impl Lexer {
         }
         Ok(name)
     }
+
     fn read_include(&mut self) -> ParseR<()> {
         // this will be a function
         let filename = try!(self.read_headerfile_name());
-        let abs_filename = self.try_include(filename.as_str())
+        let abs_filename = self
+            .try_include(filename.as_str())
             .or_else(|| {
                 println!("error: {}: not found '{}'", *self.get_cur_line(), filename);
                 process::exit(-1);
@@ -1109,6 +1154,7 @@ impl Lexer {
         self.register_obj_macro(name, body);
         Ok(())
     }
+
     fn read_define_func_macro(&mut self, name: String) -> ParseR<()> {
         // read macro arguments
         let mut params = HashMap::new();
@@ -1153,6 +1199,7 @@ impl Lexer {
         self.register_funclike_macro(name, body);
         Ok(())
     }
+
     fn read_define(&mut self) -> ParseR<()> {
         let mcro = try!(self.do_read_token());
         assert!(matches!(mcro.kind, TokenKind::Identifier(_)));
@@ -1166,6 +1213,7 @@ impl Lexer {
             self.read_define_obj_macro(ident_val!(mcro))
         }
     }
+
     fn read_undef(&mut self) -> ParseR<()> {
         let mcro = try!(self.do_read_token());
         assert!(matches!(mcro.kind, TokenKind::Identifier(_)));
@@ -1176,6 +1224,7 @@ impl Lexer {
     fn register_obj_macro(&mut self, name: String, body: Vec<Token>) {
         self.macro_map.insert(name, Macro::Object(body));
     }
+
     fn register_funclike_macro(&mut self, name: String, body: Vec<Token>) {
         self.macro_map.insert(name, Macro::FuncLike(body));
     }
@@ -1202,6 +1251,7 @@ impl Lexer {
             ))
         }
     }
+
     fn read_intexpr_line(&mut self) -> ParseR<Vec<Token>> {
         let mut v = Vec::new();
         loop {
@@ -1231,6 +1281,7 @@ impl Lexer {
         }
         Ok(v)
     }
+
     fn read_constexpr(&mut self) -> ParseR<bool> {
         let expr_line = try!(self.read_intexpr_line());
         self.buf.push_back(VecDeque::new());
@@ -1257,20 +1308,24 @@ impl Lexer {
         }
         Ok(())
     }
+
     fn read_if(&mut self) -> ParseR<()> {
         let cond = try!(self.read_constexpr());
         self.do_read_if(cond)
     }
+
     fn read_ifdef(&mut self) -> ParseR<()> {
         let macro_name = ident_val!(try!(self.do_read_token()));
         let macro_is_defined = self.macro_map.contains_key(macro_name.as_str());
         self.do_read_if(macro_is_defined)
     }
+
     fn read_ifndef(&mut self) -> ParseR<()> {
         let macro_name = ident_val!(try!(self.do_read_token()));
         let macro_is_undefined = !self.macro_map.contains_key(macro_name.as_str());
         self.do_read_if(macro_is_undefined)
     }
+
     fn read_elif(&mut self) -> ParseR<()> {
         if *self.cond_stack.last().unwrap() || !try!(self.read_constexpr()) {
             try!(self.skip_cond_include());
@@ -1280,6 +1335,7 @@ impl Lexer {
         }
         Ok(())
     }
+
     fn read_else(&mut self) -> ParseR<()> {
         if *self.cond_stack.last().unwrap() {
             try!(self.skip_cond_include());

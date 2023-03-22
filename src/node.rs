@@ -1,8 +1,8 @@
-use std::boxed::Box;
-use types::{StorageClass, Type};
-use parser::{Error, ParseR};
-use std::marker::Send;
 use lexer::Pos;
+use parser::{Error, ParseR};
+use std::boxed::Box;
+use std::marker::Send;
+use types::{StorageClass, Type};
 
 #[derive(Debug, Clone)]
 pub struct AST {
@@ -249,12 +249,16 @@ impl AST {
                 body.show();
                 print!(")");
             }
-            ASTKind::Block(ref body) => for stmt in body {
-                stmt.show();
-            },
-            ASTKind::Compound(ref body) => for stmt in body {
-                stmt.show();
-            },
+            ASTKind::Block(ref body) => {
+                for stmt in body {
+                    stmt.show();
+                }
+            }
+            ASTKind::Compound(ref body) => {
+                for stmt in body {
+                    stmt.show();
+                }
+            }
             ASTKind::If(ref cond, ref then_b, ref else_b) => {
                 print!("(if ");
                 cond.show();

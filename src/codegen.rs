@@ -5,26 +5,26 @@ extern crate libc;
 extern crate rand;
 use self::rand::Rng;
 
-use std::ffi::CString;
-use std::ptr;
 use std::boxed::Box;
 use std::collections::{hash_map, HashMap, VecDeque};
+use std::ffi::CString;
+use std::ptr;
 
 use self::llvm::core::*;
 use self::llvm::prelude::*;
 
+use lexer::Pos;
 use node;
 use node::Bits;
-use lexer::Pos;
 use types::{RectypeName, Sign, StorageClass, Type};
 
 macro_rules! matches {
     ($e:expr, $p:pat) => {
         match $e {
             $p => true,
-            _ => false
+            _ => false,
         }
-    }
+    };
 }
 
 pub fn retrieve_from_load<'a>(ast: &'a node::AST) -> &'a node::AST {
@@ -146,8 +146,9 @@ impl Codegen {
                 LLVMInt32Type(),
                 LLVMInt32Type(),
                 LLVMInt1Type(),
-            ].as_mut_slice()
-                .as_mut_ptr(),
+            ]
+            .as_mut_slice()
+            .as_mut_ptr(),
             5,
             0,
         );
@@ -180,8 +181,9 @@ impl Codegen {
                 LLVMInt32Type(),
                 LLVMInt32Type(),
                 LLVMInt1Type(),
-            ].as_mut_slice()
-                .as_mut_ptr(),
+            ]
+            .as_mut_slice()
+            .as_mut_ptr(),
             5,
             0,
         );
@@ -571,7 +573,8 @@ impl Codegen {
         var: LLVMValueRef,
         ty: &Type,
     ) -> CodegenR<(LLVMValueRef, Option<Type>)> {
-        let llvm_memset = self.global_varmap
+        let llvm_memset = self
+            .global_varmap
             .get("llvm.memset.p0i8.i32")
             .unwrap()
             .clone();
@@ -584,8 +587,9 @@ impl Codegen {
                 LLVMConstInt(LLVMInt32Type(), ty.calc_size() as u64, 0),
                 LLVMConstInt(LLVMInt32Type(), 4, 0),
                 LLVMConstInt(LLVMInt1Type(), 0, 0),
-            ].as_mut_slice()
-                .as_mut_ptr(),
+            ]
+            .as_mut_slice()
+            .as_mut_ptr(),
             5,
             CString::new("").unwrap().as_ptr(),
         );
@@ -609,8 +613,9 @@ impl Codegen {
                 vec![
                     try!(self.make_int(0, &Bits::Bits32, false)).0,
                     try!(self.make_int(0, &Bits::Bits32, false)).0,
-                ].as_mut_slice()
-                    .as_mut_ptr(),
+                ]
+                .as_mut_slice()
+                .as_mut_ptr(),
                 2,
                 CString::new("gep").unwrap().as_ptr(),
             );
@@ -1464,18 +1469,16 @@ impl Codegen {
         ty: Type,
         op: &node::CBinOps,
     ) -> CodegenR<(LLVMValueRef, Option<Type>)> {
-        let mut numidx = vec![
-            match *op {
-                node::CBinOps::Add => rhs,
-                node::CBinOps::Sub => LLVMBuildSub(
-                    self.builder,
-                    try!(self.make_int(0, &Bits::Bits32, false)).0,
-                    rhs,
-                    CString::new("sub").unwrap().as_ptr(),
-                ),
-                _ => rhs,
-            },
-        ];
+        let mut numidx = vec![match *op {
+            node::CBinOps::Add => rhs,
+            node::CBinOps::Sub => LLVMBuildSub(
+                self.builder,
+                try!(self.make_int(0, &Bits::Bits32, false)).0,
+                rhs,
+                CString::new("sub").unwrap().as_ptr(),
+            ),
+            _ => rhs,
+        }];
         Ok((
             LLVMBuildGEP(
                 self.builder,
@@ -1650,7 +1653,8 @@ impl Codegen {
         let strct_name = ty.get_name();
         assert!(strct_name.is_some());
 
-        let ref rectype = self.llvm_struct_map
+        let ref rectype = self
+            .llvm_struct_map
             .get(strct_name.unwrap().as_str())
             .unwrap();
         let idx = *rectype.field_pos.get(field_name.as_str()).unwrap();
@@ -1734,8 +1738,9 @@ impl Codegen {
                             vec![
                                 try!(self.make_int(0, &Bits::Bits32, false)).0,
                                 try!(self.make_int(0, &Bits::Bits32, false)).0,
-                            ].as_mut_slice()
-                                .as_mut_ptr(),
+                            ]
+                            .as_mut_slice()
+                            .as_mut_ptr(),
                             2,
                             CString::new("gep").unwrap().as_ptr(),
                         ),

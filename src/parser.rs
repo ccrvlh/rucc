@@ -1,12 +1,12 @@
 use lexer::{Keyword, Lexer, Pos, Symbol, Token, TokenKind};
-use node::{ASTKind, Bits, AST};
 use node;
+use node::{ASTKind, Bits, AST};
 use types::{Sign, StorageClass, Type};
 
-use std::str;
 use std::boxed::Box;
-use std::io::{stderr, Write};
 use std::collections::{hash_map, HashMap, VecDeque};
+use std::io::{stderr, Write};
+use std::str;
 
 // use CODEGEN;
 
@@ -64,29 +64,37 @@ impl<T: Clone> Env<T> {
         env.push_back(HashMap::new());
         Env(env)
     }
+
     fn push(&mut self) {
         let localenv = (*self.0.back().unwrap()).clone();
         self.0.push_back(localenv);
     }
+
     fn pop(&mut self) {
         self.0.pop_back();
     }
+
     fn add(&mut self, name: String, val: T) {
         self.0.back_mut().unwrap().insert(name, val);
     }
+
     fn add_globally(&mut self, name: String, val: T) {
         self.0[0].insert(name.clone(), val.clone());
         self.0.back_mut().unwrap().insert(name, val);
     }
+
     fn is_local(&self) -> bool {
         self.0.len() > 1
     }
+
     fn back_mut(&mut self) -> Option<&mut HashMap<String, T>> {
         self.0.back_mut()
     }
+
     fn get(&mut self, name: &str) -> Option<&T> {
         self.0.back_mut().unwrap().get(name)
     }
+
     fn contains(&mut self, name: &str) -> bool {
         self.0.back_mut().unwrap().contains_key(name)
     }
@@ -96,17 +104,17 @@ macro_rules! matches {
     ($e:expr, $p:pat) => {
         match $e {
             $p => true,
-            _ => false
+            _ => false,
         }
-    }
+    };
 }
 macro_rules! ident_val {
     ($e:expr) => {
         match &$e.kind {
             &TokenKind::Identifier(ref ident) => ident.to_string(),
-            _ => "".to_string()
+            _ => "".to_string(),
         }
-    }
+    };
 }
 macro_rules! expect_symbol_error {
     ($slf:expr, $sym:expr, $msg:expr) => {{
@@ -114,19 +122,39 @@ macro_rules! expect_symbol_error {
             let peek = $slf.lexer.peek();
             $slf.show_error_token(&try!(peek), $msg);
         }
-    }}
+    }};
 }
 
 impl<'a> Parser<'a> {
     pub fn new(lexer: &'a mut Lexer) -> Parser<'a> {
-        Parser {
+        return Parser {
             lexer: lexer,
             err_counts: 0,
             env: Env::new(),
             tags: Env::new(),
             // constexpr_func_map: HashSet::new(),
-        }
+        };
     }
+    // Reader
+    pub fn read_toplevel(&mut self, ast: &mut Vec<AST>) -> ParseR<()> {
+        // TODO: refine
+        if try!(self.is_function_def()) {
+            match self.read_func_def() {
+                Ok(ok) => ast.push(ok),
+                Err(Error::EOF) => self.show_error("expected a token, but reached EOF"),
+                Err(e) => return Err(e),
+            }
+        } else {
+            match self.read_decl(ast) {
+                Err(Error::EOF) => self.show_error("expected a token, but reached EOF"),
+                Err(e) => return Err(e),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    // Utilities
     fn show_error(&mut self, msg: &str) {
         self.err_counts += 1;
         writeln!(
@@ -136,8 +164,10 @@ impl<'a> Parser<'a> {
             Colour::Red.bold().paint("error:"),
             self.lexer.get_cur_line(),
             msg
-        ).unwrap();
+        )
+        .unwrap();
     }
+
     fn show_error_token(&mut self, token: &Token, msg: &str) {
         self.err_counts += 1;
         writeln!(
@@ -147,14 +177,17 @@ impl<'a> Parser<'a> {
             Colour::Red.bold().paint("error:"),
             token.pos.line,
             msg
-        ).unwrap();
+        )
+        .unwrap();
         writeln!(
             &mut stderr(),
             "{}",
             self.lexer
                 .get_surrounding_code_with_err_point(token.pos.pos,)
-        ).unwrap();
+        )
+        .unwrap();
     }
+
     pub fn run_file(filename: String) -> Vec<AST> {
         let mut nodes: Vec<AST> = Vec::new();
         let mut lexer = Lexer::new(filename.to_string());
@@ -174,13 +207,16 @@ impl<'a> Parser<'a> {
         Parser::new(&mut lexer).run(&mut nodes);
         nodes
     }
+
     pub fn run(&mut self, node: &mut Vec<AST>) {
         while matches!(self.read_toplevel(node), Ok(_)) {}
         self.show_total_errors();
     }
+
     pub fn run_as_expr(&mut self) -> ParseR<AST> {
         self.read_expr()
     }
+
     pub fn show_total_errors(&mut self) {
         if self.err_counts > 0 {
             println!(
@@ -191,23 +227,8 @@ impl<'a> Parser<'a> {
             ::std::process::exit(-1);
         }
     }
-    pub fn read_toplevel(&mut self, ast: &mut Vec<AST>) -> ParseR<()> {
-        // TODO: refine
-        if try!(self.is_function_def()) {
-            match self.read_func_def() {
-                Ok(ok) => ast.push(ok),
-                Err(Error::EOF) => self.show_error("expected a token, but reached EOF"),
-                Err(e) => return Err(e),
-            }
-        } else {
-            match self.read_decl(ast) {
-                Err(Error::EOF) => self.show_error("expected a token, but reached EOF"),
-                Err(e) => return Err(e),
-                _ => {}
-            }
-        }
-        Ok(())
-    }
+
+    // Spcific Readers
     fn read_func_def(&mut self) -> ParseR<AST> {
         self.env.push();
         self.tags.push();
@@ -251,9 +272,11 @@ impl<'a> Parser<'a> {
             Pos::new(0, 0),
         ))
     }
+
     fn read_func_body(&mut self, _functy: &Type) -> ParseR<AST> {
         self.read_compound_stmt()
     }
+
     fn read_compound_stmt(&mut self) -> ParseR<AST> {
         let mut stmts: Vec<AST> = Vec::new();
         loop {
@@ -277,6 +300,7 @@ impl<'a> Parser<'a> {
         }
         Ok(AST::new(ASTKind::Block(stmts), Pos::new(0, 0)))
     }
+
     fn read_stmt(&mut self) -> ParseR<AST> {
         let tok = try!(self.lexer.get());
         if let &TokenKind::Keyword(ref keyw) = &tok.kind {
@@ -309,6 +333,7 @@ impl<'a> Parser<'a> {
         expect_symbol_error!(self, Symbol::Semicolon, "expected ';'");
         expr
     }
+
     fn read_if_stmt(&mut self) -> ParseR<AST> {
         expect_symbol_error!(self, Symbol::OpeningParen, "expected '('");
         let cond = try!(self.read_expr());
@@ -324,6 +349,7 @@ impl<'a> Parser<'a> {
             Pos::new(0, 0),
         ))
     }
+
     fn read_for_stmt(&mut self) -> ParseR<AST> {
         expect_symbol_error!(self, Symbol::OpeningParen, "expected '('");
         let init = try!(self.read_opt_decl_or_stmt());
@@ -348,6 +374,7 @@ impl<'a> Parser<'a> {
             Pos::new(0, 0),
         ))
     }
+
     fn read_while_stmt(&mut self) -> ParseR<AST> {
         expect_symbol_error!(self, Symbol::OpeningParen, "expected '('");
         let cond = try!(self.read_expr());
@@ -358,6 +385,7 @@ impl<'a> Parser<'a> {
             Pos::new(0, 0),
         ))
     }
+
     fn read_do_while_stmt(&mut self) -> ParseR<AST> {
         let body = try!(self.read_stmt());
         if !try!(self.lexer.skip_keyword(Keyword::While)) {
@@ -373,6 +401,7 @@ impl<'a> Parser<'a> {
             Pos::new(0, 0),
         ))
     }
+
     fn read_switch_stmt(&mut self) -> ParseR<AST> {
         expect_symbol_error!(self, Symbol::OpeningParen, "expected '('");
         let cond = try!(self.read_expr());
@@ -383,37 +412,44 @@ impl<'a> Parser<'a> {
             Pos::new(0, 0),
         ))
     }
+
     fn read_case_label(&mut self) -> ParseR<AST> {
         let expr = try!(self.read_expr());
         expect_symbol_error!(self, Symbol::Colon, "expected ':'");
         Ok(AST::new(ASTKind::Case(Box::new(expr)), Pos::new(0, 0)))
     }
+
     fn read_default_label(&mut self) -> ParseR<AST> {
         expect_symbol_error!(self, Symbol::Colon, "expected ':'");
         Ok(AST::new(ASTKind::DefaultL, Pos::new(0, 0)))
     }
+
     fn read_goto_stmt(&mut self) -> ParseR<AST> {
         let pos = self.lexer.get_cur_pos();
         let label_name = ident_val!(try!(self.lexer.get()));
         expect_symbol_error!(self, Symbol::Semicolon, "expected ';'");
         Ok(AST::new(ASTKind::Goto(label_name), pos))
     }
+
     fn read_label(&mut self, tok: Token) -> ParseR<AST> {
         let pos = self.lexer.get_cur_pos();
         let label_name = ident_val!(tok);
         expect_symbol_error!(self, Symbol::Colon, "expected ':'");
         Ok(AST::new(ASTKind::Label(label_name), pos))
     }
+
     fn read_continue_stmt(&mut self) -> ParseR<AST> {
         let pos = self.lexer.get_cur_pos();
         expect_symbol_error!(self, Symbol::Semicolon, "expected ';'");
         Ok(AST::new(ASTKind::Continue, pos))
     }
+
     fn read_break_stmt(&mut self) -> ParseR<AST> {
         let pos = self.lexer.get_cur_pos();
         expect_symbol_error!(self, Symbol::Semicolon, "expected ';'");
         Ok(AST::new(ASTKind::Break, pos))
     }
+
     fn read_return_stmt(&mut self) -> ParseR<AST> {
         let pos = self.lexer.get_cur_pos();
         if try!(self.lexer.skip_symbol(Symbol::Semicolon)) {
@@ -424,6 +460,8 @@ impl<'a> Parser<'a> {
             Ok(AST::new(ASTKind::Return(retval), pos))
         }
     }
+
+    // Check
     fn is_function_def(&mut self) -> ParseR<bool> {
         let mut buf = Vec::new();
         let mut is_funcdef = false;
@@ -465,6 +503,7 @@ impl<'a> Parser<'a> {
         self.lexer.unget_all(&buf);
         Ok(is_funcdef)
     }
+
     fn skip_parens(&mut self, opening_paren: &Token, buf: &mut Vec<Token>) -> ParseR<()> {
         loop {
             let tok = try!(self.lexer.get().or_else(|_| {
@@ -481,6 +520,7 @@ impl<'a> Parser<'a> {
         }
         Ok(())
     }
+
     fn skip_until(&mut self, sym: Symbol) {
         let ts = TokenKind::Symbol(sym);
         while match self.lexer.get() {
@@ -512,6 +552,7 @@ impl<'a> Parser<'a> {
         }
         Ok(None)
     }
+
     fn is_type(&mut self, token: &Token) -> bool {
         if let TokenKind::Keyword(ref keyw) = token.kind {
             match *keyw {
@@ -551,6 +592,7 @@ impl<'a> Parser<'a> {
             false
         }
     }
+
     fn is_string(&self, ty: &Type) -> bool {
         if let &Type::Array(ref elem_ty, _) = ty {
             if matches!(**elem_ty, Type::Char(Sign::Signed)) {
@@ -559,6 +601,8 @@ impl<'a> Parser<'a> {
         }
         false
     }
+
+    // Readers
     fn read_decl_init(&mut self, ty: &mut Type) -> ParseR<AST> {
         // TODO: implement for like 'int a[] = {...}, char *s="str";'
         if try!(self.lexer.peek_symbol_token_is(Symbol::OpeningBrace)) {
@@ -572,6 +616,7 @@ impl<'a> Parser<'a> {
         }
         self.read_assign()
     }
+
     fn read_initializer_elem(&mut self, ty: &mut Type) -> ParseR<AST> {
         if match *ty {
             Type::Array(_, _) | Type::Struct(_, _) | Type::Union(_, _, _) => true,
@@ -586,6 +631,7 @@ impl<'a> Parser<'a> {
             self.read_assign()
         }
     }
+
     fn read_initializer_list(&mut self, ty: &mut Type) -> ParseR<AST> {
         if self.is_string(ty) {
             let tok = try!(self.lexer.get());
@@ -600,6 +646,7 @@ impl<'a> Parser<'a> {
             _ => self.read_assign(),
         }
     }
+
     fn read_string_initializer(&mut self, ty: &mut Type, string: String) -> ParseR<AST> {
         let char_ary = string
             .chars()
@@ -615,6 +662,7 @@ impl<'a> Parser<'a> {
             self.lexer.get_cur_pos(),
         ))
     }
+
     fn read_array_initializer(&mut self, ty: &mut Type) -> ParseR<AST> {
         let has_brace = try!(self.lexer.skip_symbol(Symbol::OpeningBrace));
 
@@ -646,6 +694,7 @@ impl<'a> Parser<'a> {
             panic!()
         }
     }
+
     fn read_struct_initializer(&mut self, ty: &mut Type) -> ParseR<AST> {
         let tok = try!(self.lexer.get());
         let has_brace = tok.kind == TokenKind::Symbol(Symbol::OpeningBrace);
@@ -677,6 +726,7 @@ impl<'a> Parser<'a> {
             self.lexer.get_cur_pos(),
         ))
     }
+
     fn skip_type_qualifiers(&mut self) -> ParseR<()> {
         while try!(self.lexer.skip_keyword(Keyword::Const))
             || try!(self.lexer.skip_keyword(Keyword::Volatile))
@@ -684,6 +734,7 @@ impl<'a> Parser<'a> {
         {}
         Ok(())
     }
+
     fn read_decl(&mut self, ast: &mut Vec<AST>) -> ParseR<()> {
         let (basety, sclass, qualifiers) = try!(self.read_type_spec());
         let is_typedef = sclass == StorageClass::Typedef;
@@ -736,6 +787,7 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
     fn read_opt_decl_or_stmt(&mut self) -> ParseR<AST> {
         if try!(self.lexer.skip_symbol(Symbol::Semicolon)) {
             return Ok(AST::new(ASTKind::Compound(Vec::new()), Pos::new(0, 0)));
@@ -753,6 +805,7 @@ impl<'a> Parser<'a> {
         }
     }
     // returns (declarator type, name, params{for function})
+
     fn read_declarator(&mut self, basety: Type) -> ParseR<(Type, String, Option<Vec<String>>)> {
         if try!(self.lexer.skip_symbol(Symbol::OpeningParen)) {
             let peek_tok = try!(self.lexer.peek());
@@ -787,6 +840,7 @@ impl<'a> Parser<'a> {
         let (ty, params) = try!(self.read_declarator_tail(basety));
         Ok((ty, "".to_string(), params))
     }
+
     fn read_declarator_tail(&mut self, basety: Type) -> ParseR<(Type, Option<Vec<String>>)> {
         if try!(self.lexer.skip_symbol(Symbol::OpeningBoxBracket)) {
             return Ok((try!(self.read_declarator_array(basety)), None));
@@ -816,6 +870,7 @@ impl<'a> Parser<'a> {
         let ty = try!(self.read_declarator_tail(basety)).0;
         Ok(Type::Array(Box::new(ty), len))
     }
+
     fn read_declarator_func(&mut self, retty: Type) -> ParseR<(Type, Option<Vec<String>>)> {
         if try!(self.lexer.peek_keyword_token_is(Keyword::Void))
             && try!(self.lexer.next_symbol_token_is(Symbol::ClosingParen))
@@ -835,6 +890,7 @@ impl<'a> Parser<'a> {
         ))
     }
     // returns (param types, param names, vararg?)
+
     fn read_declarator_params(&mut self) -> ParseR<(Vec<Type>, Vec<String>, bool)> {
         let mut paramtypes: Vec<Type> = Vec::new();
         let mut paramnames: Vec<String> = Vec::new();
@@ -874,6 +930,7 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
     fn read_func_param(&mut self) -> ParseR<(Type, String)> {
         let basety = try!(self.read_type_spec()).0;
         let (ty, name, _) = try!(self.read_declarator(basety));
@@ -883,6 +940,7 @@ impl<'a> Parser<'a> {
             _ => Ok((ty, name)),
         }
     }
+
     fn read_type_spec(&mut self) -> ParseR<(Type, StorageClass, Qualifiers)> {
         #[derive(PartialEq, Debug, Clone)]
         enum Size {
@@ -1040,10 +1098,12 @@ impl<'a> Parser<'a> {
     fn read_struct_def(&mut self) -> ParseR<Type> {
         self.read_rectype_def(true)
     }
+
     fn read_union_def(&mut self) -> ParseR<Type> {
         self.read_rectype_def(false)
     }
     // rectype is abbreviation of 'record type'
+
     fn read_rectype_tag(&mut self) -> ParseR<Option<String>> {
         let maybe_tag = try!(self.lexer.get());
         if let TokenKind::Identifier(maybe_tag_name) = maybe_tag.kind {
@@ -1053,6 +1113,7 @@ impl<'a> Parser<'a> {
             Ok(None)
         }
     }
+
     fn read_rectype_def(&mut self, is_struct: bool) -> ParseR<Type> {
         let tag = {
             let opt_tag = try!(self.read_rectype_tag());
@@ -1106,6 +1167,7 @@ impl<'a> Parser<'a> {
             })
         }
     }
+
     fn read_rectype_fields(&mut self) -> ParseR<Vec<AST>> {
         if !try!(self.lexer.skip_symbol(Symbol::OpeningBrace)) {
             return Ok(Vec::new());
@@ -1139,6 +1201,7 @@ impl<'a> Parser<'a> {
         expect_symbol_error!(self, Symbol::ClosingBrace, "expected '}'");
         Ok(decls)
     }
+
     fn read_enum_def(&mut self) -> ParseR<Type> {
         let (tag, exist_tag) = {
             let opt_tag = try!(self.read_rectype_tag());
@@ -1207,6 +1270,7 @@ impl<'a> Parser<'a> {
     pub fn read_expr(&mut self) -> ParseR<AST> {
         self.read_comma()
     }
+
     pub fn read_opt_expr(&mut self) -> ParseR<AST> {
         if try!(self.lexer.peek()).kind == TokenKind::Symbol(Symbol::Semicolon) {
             Ok(AST::new(
@@ -1217,6 +1281,7 @@ impl<'a> Parser<'a> {
             self.read_expr()
         }
     }
+
     fn read_comma(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_assign());
         while try!(self.lexer.skip_symbol(Symbol::Comma)) {
@@ -1228,29 +1293,35 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_assign(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_logor());
         if try!(self.lexer.skip_symbol(Symbol::Question)) {
             return self.read_ternary(lhs);
         }
-        macro_rules! assign { ($lhs:expr, $rhs:expr, $pos:expr) => (
-            AST::new(
-                ASTKind::BinaryOp(Box::new($lhs), Box::new($rhs), node::CBinOps::Assign), $pos
-            ) )
-        }
-        macro_rules! f { ($op:ident) => (
-            lhs = assign!(
-                lhs.clone(),
+        macro_rules! assign {
+            ($lhs:expr, $rhs:expr, $pos:expr) => {
                 AST::new(
-                    ASTKind::BinaryOp(
-                        Box::new(lhs),
-                        Box::new(try!(self.read_assign())),
-                        node::CBinOps::$op,
+                    ASTKind::BinaryOp(Box::new($lhs), Box::new($rhs), node::CBinOps::Assign),
+                    $pos,
+                )
+            };
+        }
+        macro_rules! f {
+            ($op:ident) => {
+                lhs = assign!(
+                    lhs.clone(),
+                    AST::new(
+                        ASTKind::BinaryOp(
+                            Box::new(lhs),
+                            Box::new(try!(self.read_assign())),
+                            node::CBinOps::$op,
+                        ),
+                        self.lexer.get_cur_pos(),
                     ),
-                    self.lexer.get_cur_pos(),
-                ),
-                self.lexer.get_cur_pos()
-            ); )
+                    self.lexer.get_cur_pos()
+                );
+            };
         }
         loop {
             let tok = try!(self.lexer.get());
@@ -1277,6 +1348,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_ternary(&mut self, cond: AST) -> ParseR<AST> {
         let mut then_expr = try!(self.read_expr());
         expect_symbol_error!(self, Symbol::Colon, "expected ':'");
@@ -1293,6 +1365,7 @@ impl<'a> Parser<'a> {
             self.lexer.get_cur_pos(),
         ))
     }
+
     fn read_logor(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_logand());
         while try!(self.lexer.skip_symbol(Symbol::LOr)) {
@@ -1304,6 +1377,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_logand(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_or());
         while try!(self.lexer.skip_symbol(Symbol::LAnd)) {
@@ -1315,6 +1389,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_or(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_xor());
         while try!(self.lexer.skip_symbol(Symbol::Or)) {
@@ -1326,6 +1401,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_xor(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_and());
         while try!(self.lexer.skip_symbol(Symbol::Xor)) {
@@ -1337,6 +1413,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_and(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_eq_ne());
         while try!(self.lexer.skip_symbol(Symbol::Ampersand)) {
@@ -1348,6 +1425,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_eq_ne(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_relation());
         loop {
@@ -1369,6 +1447,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_relation(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_shl_shr());
         loop {
@@ -1402,6 +1481,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_shl_shr(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_add_sub());
         loop {
@@ -1423,6 +1503,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_add_sub(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_mul_div_rem());
         loop {
@@ -1444,6 +1525,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_mul_div_rem(&mut self) -> ParseR<AST> {
         let mut lhs = try!(self.read_cast());
         loop {
@@ -1471,6 +1553,7 @@ impl<'a> Parser<'a> {
         }
         Ok(lhs)
     }
+
     fn read_cast(&mut self) -> ParseR<AST> {
         let tok = try!(self.lexer.get());
         let peek = try!(self.lexer.peek());
@@ -1487,6 +1570,7 @@ impl<'a> Parser<'a> {
         }
         self.read_unary()
     }
+
     fn read_unary(&mut self) -> ParseR<AST> {
         let tok = try!(self.lexer.get());
         match tok.kind {
@@ -1568,6 +1652,7 @@ impl<'a> Parser<'a> {
         self.lexer.unget(tok);
         self.read_postfix()
     }
+
     fn read_sizeof(&mut self) -> ParseR<AST> {
         let tok = try!(self.lexer.get());
         let peek = try!(self.lexer.peek());
@@ -1587,6 +1672,7 @@ impl<'a> Parser<'a> {
             self.lexer.get_cur_pos(),
         ))
     }
+
     fn read_postfix(&mut self) -> ParseR<AST> {
         let mut ast = try!(self.read_primary());
         loop {
@@ -1633,6 +1719,7 @@ impl<'a> Parser<'a> {
         }
         Ok(ast)
     }
+
     fn read_func_call(&mut self, f: AST) -> ParseR<AST> {
         let pos = self.lexer.get_cur_pos();
         let mut args = Vec::new();
@@ -1657,6 +1744,7 @@ impl<'a> Parser<'a> {
 
         Ok(AST::new(ASTKind::FuncCall(Box::new(f), args), pos))
     }
+
     fn read_index(&mut self, ast: AST) -> ParseR<AST> {
         let idx = try!(self.read_expr());
         expect_symbol_error!(self, Symbol::ClosingBoxBracket, "expected ']'");
@@ -1745,11 +1833,12 @@ impl<'a> Parser<'a> {
 
     fn usual_binary_ty_cov(&mut self, lhs: Type, rhs: Type) -> Type {
         if lhs.priority() < rhs.priority() {
-            rhs
+            return rhs;
         } else {
             lhs
         }
     }
+
     fn get_binary_expr_ty(&mut self, lhs: &AST, rhs: &AST, op: &node::CBinOps) -> ParseR<Type> {
         fn cast(ty: Type) -> Type {
             match ty {
@@ -1774,6 +1863,7 @@ impl<'a> Parser<'a> {
         }
         return Ok(self.usual_binary_ty_cov(lhs_ty, rhs_ty));
     }
+
     fn get_expr_returning_ty(&mut self, ast: &AST) -> ParseR<Type> {
         let size = match ast.kind {
             ASTKind::Int(_, Bits::Bits32) => Type::Int(Sign::Signed),
@@ -1794,11 +1884,12 @@ impl<'a> Parser<'a> {
             | ASTKind::UnaryOp(ref expr, node::CUnaryOps::BNot) => {
                 try!(self.get_expr_returning_ty(&*expr))
             }
-            ASTKind::UnaryOp(ref expr, node::CUnaryOps::Deref) => (*try!(
-                self.get_expr_returning_ty(&*expr)
-            ).get_elem_ty()
-                .unwrap())
-                .clone(),
+            ASTKind::UnaryOp(ref expr, node::CUnaryOps::Deref) => {
+                (*try!(self.get_expr_returning_ty(&*expr))
+                    .get_elem_ty()
+                    .unwrap())
+                .clone()
+            }
             ASTKind::UnaryOp(ref expr, node::CUnaryOps::Addr) => {
                 Type::Ptr(Box::new(try!(self.get_expr_returning_ty(&*expr))))
             }
@@ -1819,15 +1910,16 @@ impl<'a> Parser<'a> {
         };
         Ok(size)
     }
+
     fn calc_sizeof(&mut self, ast: &AST) -> ParseR<usize> {
         let ty = try!(self.get_expr_returning_ty(ast));
         Ok(ty.calc_size())
     }
 
     fn cast_ast(&mut self, expr: &AST, ty: &Type) -> AST {
-        AST::new(
+        return AST::new(
             ASTKind::TypeCast(Box::new(expr.clone()), ty.clone()),
             expr.pos.clone(),
-        )
+        );
     }
 }

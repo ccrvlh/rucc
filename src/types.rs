@@ -1,5 +1,5 @@
-use std::boxed::Box;
 use node::{ASTKind, AST};
+use std::boxed::Box;
 
 #[derive(PartialEq, Debug, Clone, Hash)]
 pub enum Sign {
